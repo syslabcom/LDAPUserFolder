@@ -41,8 +41,13 @@ try:
     c_factory = ldap.ldapobject.ReconnectLDAPObject
 except AttributeError:
     c_factory = ldap.ldapobject.SimpleLDAPObject
-logger = logging.getLogger('event.LDAPDelegate')
 
+try:
+    from ldap.controls import SimplePagedResultsControl
+except ImportError:
+    SimplePagedResultsControl = None
+
+logger = logging.getLogger('event.LDAPDelegate')
 
 
 class LDAPDelegate(Persistent):
@@ -73,17 +78,16 @@ class LDAPDelegate(Persistent):
         if getattr(self, '_logger', None) is not None:
             del self._logger
 
-
-    def __init__( self, server='', login_attr='', users_base='', rdn_attr=''
-                , use_ssl=0, bind_dn='', bind_pwd='', read_only=0
-                ):
+    def __init__(self, server='', login_attr='', users_base='', rdn_attr='',
+                 use_ssl=0, bind_dn='', bind_pwd='', read_only=0
+                 ):
         """ Create a new LDAPDelegate instance """
         self._hash = 'ldap_delegate%s' % str(random.random())
         self._servers = []
-        self.edit( login_attr, users_base, rdn_attr
-                 , 'top,person', bind_dn, bind_pwd
-                 , 1, read_only
-                 )
+        self.edit(login_attr, users_base, rdn_attr,
+                  'top,person', bind_dn, bind_pwd,
+                  1, read_only
+                  )
 
         if server != '':
             if server.find(':') != -1:
@@ -100,7 +104,6 @@ class LDAPDelegate(Persistent):
                     port = 389
 
             self.addServer(host, port, use_ssl)
-
 
     def addServer( self
                  , host
@@ -336,6 +339,63 @@ class LDAPDelegate(Persistent):
 
         return connection
 
+#    def _PagedAsyncSearch(self, query, sizelimit, attrlist=None):
+    def paged_search_ext_s(self, conn, base, scope, filter, attrs, attrsonly=0,serverctrls=None,clientctrls=None,timeout=-1,sizelimit=0):
+        """ Helper function that implements a paged LDAP search for
+        the Search method below.
+        Args:
+          query: LDAP filter to apply to the search
+          sizelimit: max # of users to return.
+          attrlist: list of attributes to return.  If null, all attributes
+            are returned
+        Returns:
+          A list of users as returned by the LDAP search
+        """
+        ldap_page_size = 100
+        search_flt = r'(objectClass=*)'
+        searchreq_attrlist = ['cn', 'entryDN',
+                              'entryUUID', 'mail', 'objectClass']
+
+        req_ctrl = SimplePagedResultsControl(
+            True, ldap_page_size, cookie='')
+        logging.debug('Paged search on %s for %s' % (base, filter))
+        # Send first search request
+        msgid = conn.search_ext(
+            base,
+            ldap.SCOPE_SUBTREE,
+            search_flt,
+            attrlist=searchreq_attrlist,
+            serverctrls=(serverctrls or []) + [req_ctrl]
+        )
+
+        result_pages = 0
+        all_results = []
+
+        while True:
+            rtype, rdata, rmsgid, rctrls = conn.result3(msgid)
+            all_results.extend(rdata)
+            result_pages += 1
+            # Extract the simple paged results response control
+            pctrls = [
+                c
+                for c in rctrls
+                if c.controlType == SimplePagedResultsControl.controlType
+            ]
+            if pctrls:
+                if pctrls[0].cookie:
+                    # Copy cookie from response control to request control
+                    req_ctrl.cookie = pctrls[0].cookie
+                    msgid = conn.search_ext(
+                        base,
+                        ldap.SCOPE_SUBTREE,
+                        search_flt,
+                        attrlist=searchreq_attrlist,
+                        serverctrls=(serverctrls or []) + [req_ctrl]
+                    )
+                else:
+                    break
+        return all_results
+
 
     def search( self
               , base
@@ -362,8 +422,7 @@ class LDAPDelegate(Persistent):
                 return result
 
             try:
-                # XXX
-                res = connection.search_ext_s(base, scope, filter, attrs, 0,None,None,timeout=-1, sizelimit=10)
+                res = self.paged_search_ext_s(connection, base, scope, filter, attrs)
 #                res = connection.search_s(base, scope, filter, attrs)
             except ldap.PARTIAL_RESULTS:
                 res_type, res = connection.result(all=0)
