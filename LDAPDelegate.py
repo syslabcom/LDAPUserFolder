@@ -352,19 +352,15 @@ class LDAPDelegate(Persistent):
           A list of users as returned by the LDAP search
         """
         ldap_page_size = 100
-        search_flt = r'(objectClass=*)'
-        searchreq_attrlist = ['cn', 'entryDN',
-                              'entryUUID', 'mail', 'objectClass']
-
         req_ctrl = SimplePagedResultsControl(
             True, ldap_page_size, cookie='')
         logging.debug('Paged search on %s for %s' % (base, filter))
         # Send first search request
         msgid = conn.search_ext(
             base,
-            ldap.SCOPE_SUBTREE,
-            search_flt,
-            attrlist=searchreq_attrlist,
+            scope,
+            filter,
+            attrlist=attrs,
             serverctrls=(serverctrls or []) + [req_ctrl]
         )
 
@@ -387,9 +383,9 @@ class LDAPDelegate(Persistent):
                     req_ctrl.cookie = pctrls[0].cookie
                     msgid = conn.search_ext(
                         base,
-                        ldap.SCOPE_SUBTREE,
-                        search_flt,
-                        attrlist=searchreq_attrlist,
+                        scope,
+                        filter,
+                        attrlist=attrs,
                         serverctrls=(serverctrls or []) + [req_ctrl]
                     )
                 else:
