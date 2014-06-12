@@ -351,11 +351,13 @@ class LDAPDelegate(Persistent):
         Returns:
           A list of users as returned by the LDAP search
         """
-        ldap_page_size = 100
+        ldap_page_size = 1000
         req_ctrl = SimplePagedResultsControl(
             True, ldap_page_size, cookie='')
-        logging.debug('Paged search on %s for %s' % (base, filter))
+        logger.info('> Starting Paged search on %s for %s' % (base, filter))
+        logger.info('Page size is set to %s' % ldap_page_size)
         # Send first search request
+        logger.info('Issuing initial search request')
         msgid = conn.search_ext(
             base,
             scope,
@@ -368,6 +370,7 @@ class LDAPDelegate(Persistent):
         all_results = []
 
         while True:
+            logger.info('Currently found %s results on %s pages' % (len(all_results), result_pages))
             rtype, rdata, rmsgid, rctrls = conn.result3(msgid)
             all_results.extend(rdata)
             result_pages += 1
@@ -390,6 +393,7 @@ class LDAPDelegate(Persistent):
                     )
                 else:
                     break
+        logger.info('Paged search completed. %s results found' % len(all_results))
         return all_results
 
 
@@ -419,7 +423,6 @@ class LDAPDelegate(Persistent):
 
             try:
                 res = self.paged_search_ext_s(connection, base, scope, filter, attrs)
-#                res = connection.search_s(base, scope, filter, attrs)
             except ldap.PARTIAL_RESULTS:
                 res_type, res = connection.result(all=0)
             except ldap.REFERRAL, e:
