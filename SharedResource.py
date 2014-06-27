@@ -17,9 +17,9 @@ $Id: SharedResource.py 1485 2008-06-04 16:08:38Z jens $
 
 """Shared Resource.
 
-'Shared Resource' is a module that manages resources shared by all threads. 
+'Shared Resource' is a module that manages resources shared by all threads.
 Such resources can be controlled much more easily. A shared resource provides
-locking capabilities (via Python's RLock) and performs automatic locking for 
+locking capabilities (via Python's RLock) and performs automatic locking for
 function calls. Access to non-functions is not protected.
 
 A shared resource is identified by an id. The application
@@ -49,7 +49,7 @@ def getResource(id, factory, factoryArgs=()):
         except KeyError:
             _ResourceMap[id] = _SharedResource(factory(*factoryArgs))
             return _ResourceMap[id]
-    finally: 
+    finally:
         _ResourceLock.release()
 
 def setResource(id, resource):
@@ -82,13 +82,13 @@ class _SharedResource(_RLock):
 
     def __getattr__(self, key):
         a = getattr(self._target, key)
-        if callable(a): 
+        if callable(a):
             a = _SharedCallable(self,a)
 
         return a
 
     def __setattr__(self, key, value):
-        if self._isMyAttribute(key): 
+        if self._isMyAttribute(key):
             self.__dict__[key] = value
         else:
             setattr(self._target, key, value)
@@ -111,9 +111,9 @@ class _SharedCallable:
 
     def __call__(self, *args, **kw):
         self._lock.acquire()
-        try: 
+        try:
             return self._callable(*args, **kw)
-        finally: 
+        finally:
             self._lock.release()
 
 

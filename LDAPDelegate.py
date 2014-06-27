@@ -24,6 +24,7 @@ from ldap.filter import filter_format
 import logging
 import random
 
+
 # Zope imports
 from Persistence import Persistent
 from AccessControl.SecurityManagement import getSecurityManager
@@ -354,9 +355,8 @@ class LDAPDelegate(Persistent):
         ldap_page_size = 1000
         req_ctrl = SimplePagedResultsControl(
             True, ldap_page_size, cookie='')
-        logger.info('> Starting Paged search on %s for %s' % (base, filter))
-        logger.info('Page size is set to %s' % ldap_page_size)
-        # Send first search request
+
+        logger.info('> Starting Paged search (%s) on %s for %s' % (ldap_page_size, base, filter))
         logger.info('Issuing initial search request')
         msgid = conn.search_ext(
             base,
@@ -365,12 +365,12 @@ class LDAPDelegate(Persistent):
             attrlist=attrs,
             serverctrls=(serverctrls or []) + [req_ctrl]
         )
-
         result_pages = 0
         all_results = []
 
         while True:
             logger.info('Currently found %s results on %s pages' % (len(all_results), result_pages))
+
             rtype, rdata, rmsgid, rctrls = conn.result3(msgid)
             all_results.extend(rdata)
             result_pages += 1
@@ -382,6 +382,7 @@ class LDAPDelegate(Persistent):
             ]
             if pctrls:
                 if pctrls[0].cookie:
+                    # logger.info("Cookie: %s" % pctrls[0].cookie)
                     # Copy cookie from response control to request control
                     req_ctrl.cookie = pctrls[0].cookie
                     msgid = conn.search_ext(
@@ -393,6 +394,7 @@ class LDAPDelegate(Persistent):
                     )
                 else:
                     break
+
         logger.info('Paged search completed. %s results found' % len(all_results))
         return all_results
 
