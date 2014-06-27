@@ -50,6 +50,7 @@ except ImportError:
 
 logger = logging.getLogger('event.LDAPDelegate')
 
+CONN = None
 
 class LDAPDelegate(Persistent):
     """ LDAPDelegate
@@ -195,6 +196,9 @@ class LDAPDelegate(Persistent):
         """ initialize an ldap server connection """
         conn = None
         conn_string = ''
+        global CONN
+        if CONN:
+            return CONN
 
         if bind_dn != '':
             user_dn = bind_dn
@@ -215,6 +219,7 @@ class LDAPDelegate(Persistent):
             try:
                 conn.simple_bind_s(user_dn, user_pwd)
                 conn.search_s(self.u_base, self.BASE, '(objectClass=*)')
+                CONN = conn
                 return conn
             except ( AttributeError
                    , ldap.SERVER_DOWN
@@ -236,6 +241,7 @@ class LDAPDelegate(Persistent):
                                        , conn_timeout=server['conn_timeout']
                                        , op_timeout=server['op_timeout']
                                        )
+                CONN = newconn
                 return newconn
             except ( ldap.SERVER_DOWN
                    , ldap.TIMEOUT
