@@ -50,7 +50,9 @@ except ImportError:
 
 logger = logging.getLogger('event.LDAPDelegate')
 
+import time
 CONN = None
+CONNSTAMP = None
 
 class LDAPDelegate(Persistent):
     """ LDAPDelegate
@@ -197,8 +199,15 @@ class LDAPDelegate(Persistent):
         conn = None
         conn_string = ''
         global CONN
-        if CONN:
-            return CONN
+        global CONNSTAMP
+
+        logger.info('CONN is %s' % [CONN])
+        logger.info('CONNSTAMP is %s' % [CONNSTAMP])
+
+        if CONN is not None:
+            logger.info('Delta is: %s' % (time.time()-CONNSTAMP))
+            if CONNSTAMP and time.time() - CONNSTAMP < 60:
+                return CONN
 
         if bind_dn != '':
             user_dn = bind_dn
@@ -220,6 +229,8 @@ class LDAPDelegate(Persistent):
                 conn.simple_bind_s(user_dn, user_pwd)
                 conn.search_s(self.u_base, self.BASE, '(objectClass=*)')
                 CONN = conn
+                CONNSTAMP = time.time()
+
                 return conn
             except ( AttributeError
                    , ldap.SERVER_DOWN
@@ -242,6 +253,7 @@ class LDAPDelegate(Persistent):
                                        , op_timeout=server['op_timeout']
                                        )
                 CONN = newconn
+                CONNSTAMP = time.time()
                 return newconn
             except ( ldap.SERVER_DOWN
                    , ldap.TIMEOUT
